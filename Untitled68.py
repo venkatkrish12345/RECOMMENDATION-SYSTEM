@@ -596,7 +596,8 @@ improved_recommendations('Pulp Fiction')
 
 
 #Collabrative Filtering
-ratings=pd.read_csv("E:/Datasets/the-movies-dataset (1)/ratings.csv")
+reader=Reader()
+ratings=pd.read_csv("E:/Datasets/the-movies-dataset (1)/ratings_small.csv")
 
 
 # In[156]:
@@ -607,25 +608,59 @@ ratings.head()
 
 # In[157]:
 
-
-from sklearn.model_selection import KFold
+data = Dataset.load_from_df(ratings[['userId', 'movieId', 'rating']], reader)
+data.split(n_folds=5)
 
 
 # In[162]:
 
 
-data = (ratings[['userId', 'movieId', 'rating']])
-kf = KFold(n_splits=5)
+svd = SVD()
+evaluate(svd, data, measures=['RMSE', 'MAE'])
 
 
 # In[163]:
 
+trainset = data.build_full_trainset()
+svd.train(trainset)
 
-kf.get_n_splits(data)
 
 
 # In[164]:
+ratings[ratings['userId'] == 5]
+svd.predict(10, 34162, 4.0)
+#Hybrid
+def convert_int(x):
+    try:
+        return int(x)
+    except:
+        return np.nan
+      
+      
+id_map = pd.read_csv('E:/Datasets/the-movies-dataset (1)/links_small.csv')[['movieId', 'tmdbId']]
+id_map['tmdbId'] = id_map['tmdbId'].apply(convert_int)
+id_map.columns = ['movieId', 'id']
+id_map = id_map.merge(smd[['title', 'id']], on='id').set_index('title')
 
+id_map
 
-print(kf)
-
+indices_map = id_map.set_index('id')
+indices_map
+def hybrid(userId, title):
+    idx = indices[title]
+    tmdbId = id_map.loc[title]['id']
+    #print(idx)
+    movie_id = id_map.loc[title]['movieId']
+    
+    sim_scores = list(enumerate(cosine_sim[int(idx)]))
+    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+    sim_scores = sim_scores[1:26]
+    movie_indices = [i[0] for i in sim_scores]
+    
+    movies = smd.iloc[movie_indices][['title', 'vote_count', 'vote_average', 'year', 'id']]
+    movies['est'] = movies['id'].apply(lambda x: svd.predict(userId, indices_map.loc[x]['movieId']).est)
+    movies = movies.sort_values('est', ascending=False)
+    return movies.head(10)
+  
+  hybrid(2, 'Aliens')
+  hybrid(3,'Aliens')
